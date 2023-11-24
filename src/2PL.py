@@ -72,11 +72,16 @@ class Scheduler:
         return True
 
     def release_locks(self, operation):
+        flag = False
+
         locks_to_remove = [lock for lock in self.locks if lock.transaction == operation.transaction]
 
         for lock in locks_to_remove:
             print("unlock(" + str(lock.item) + ",T" + str(lock.transaction) + ")")
             self.locks.remove(lock)
+            flag = True
+
+        return flag
 
     def check_deadlock(self, operation):
         # check if there is any lock on item
@@ -88,10 +93,11 @@ class Scheduler:
         return True
 
     def handle_deadlock(self, operation):
-        print("rollback(T" + str(operation.transaction) + ")")
 
         # relase all locks of transaction
-        self.release_locks(operation)
+        flag = self.release_locks(operation)
+        if (flag):
+            print("rollback(T" + str(operation.transaction) + ")")
         # find all operations of transaction that has been executed
         executed_operations = [op for op in self.final_schedule if op.transaction == operation.transaction]
         # find all operations of transaction that in transaction
@@ -122,13 +128,13 @@ class Scheduler:
         self.identify_timestamp()
 
         while len(self.transaction.operations) > 0:
-            # print transaction operations and locks
-            print("Transaction operations: ")
-            for operation in self.transaction.operations:
-                print(operation.type + str(operation.transaction) + "(" + operation.item + ")")
-            print("Locks: ")
-            for lock in self.locks:
-                print(lock.type + str(lock.transaction) + "(" + lock.item + ")")
+            # # print transaction operations and locks
+            # print("Transaction operations: ")
+            # for operation in self.transaction.operations:
+            #     print(operation.type + str(operation.transaction) + "(" + operation.item + ")")
+            # print("Locks: ")
+            # for lock in self.locks:
+            #     print(lock.type + str(lock.transaction) + "(" + lock.item + ")")
 
             operation = self.transaction.operations[0]
             print("Try operation: " + operation.type + str(operation.transaction) + "(" + operation.item + ")")
@@ -154,7 +160,7 @@ class Scheduler:
                         self.queue_operation(operation)
                         print("queue-S(" + str(operation.item) + ",T" + str(operation.transaction) + ")")
             elif operation.type == 'C':
-                self.release_locks(operation)
+                flag = self.release_locks(operation)
                 self.final_schedule.append(operation)
                 self.transaction.operations.pop(0)
 
@@ -170,7 +176,7 @@ class Scheduler:
                 print(operation.type + str(operation.transaction) + "(" + operation.item + ")")
 
 t = Transaction()
-input_str = "R1(A);R2(B);W1(A);R1(B);W3(A);W4(B);W2(B);R1(C);C1;C2;C3;C4"
+input_str = "R1(X);R2(X);W1(X);W2(X);W3(X);C1;C2;C3"
 t.parse_input(input_str)
 
 s = Scheduler(t)
