@@ -158,7 +158,7 @@ class Scheduler:
                         self.handle_deadlock(operation)
                     else:
                         self.queue_operation(operation)
-                        print("queue-S(" + str(operation.item) + ",T" + str(operation.transaction) + ")")
+                        print("queue-X(" + str(operation.item) + ",T" + str(operation.transaction) + ")")
             elif operation.type == 'C':
                 flag = self.release_locks(operation)
                 self.final_schedule.append(operation)
@@ -176,7 +176,7 @@ class Scheduler:
                 print(operation.type + str(operation.transaction) + "(" + operation.item + ")")
 
 t = Transaction()
-input_str = "R1(X);R2(X);W1(X);W2(X);W3(X);C1;C2;C3"
+input_str = "R1(A);R2(B);W1(A);R1(B);W3(A);W4(B);W2(B);R1(C);C1;C2;C3;C4"
 t.parse_input(input_str)
 
 s = Scheduler(t)
