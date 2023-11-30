@@ -41,8 +41,11 @@ class Scheduler:
         self.transaction = transaction
         self.locks = []
         self.timestamp = []
+        self.queue = []
         self.final_schedule = []
 
+
+    # FOR INITIAL SCHEUDLE
     def identify_timestamp(self):
         for operation in self.transaction.operations:
             if operation.transaction not in self.timestamp:
@@ -120,14 +123,47 @@ class Scheduler:
         self.transaction.operations = [op for op in self.transaction.operations if op.transaction != operation.transaction]
         # add all transaction_operations to transaction
         for op in transaction_operations:
-            self.transaction.operations.append(op)
+            self.queue.append(op)
+
+    # FOR QUEUE
+    def handle_deadlock_queue(self, operation):
+        # relase all locks of transaction
+        flag = self.release_locks(operation)
+        if (flag):
+            print("rollback(T" + str(operation.transaction) + ")")
+        # find all operations of transaction that has been executed
+        executed_operations = [op for op in self.final_schedule if op.transaction == operation.transaction]
+        # find all operations of transaction that in queue
+        transaction_operations = [op for op in self.queue if op.transaction == operation.transaction]
+        # remove all operations of transaction from final schedule
+        self.final_schedule = [op for op in self.final_schedule if op.transaction != operation.transaction]
+        # remove all operations of transaction from queue
+        self.queue = [op for op in self.queue if op.transaction != operation.transaction]
+        # add all executed_transactions to queue
+        for op in executed_operations:
+            self.queue.append(op)
+        # add all transaction_operations to queue
+        for op in transaction_operations:
+            self.queue.append(op)
+
+    def queue_operation_queue(self, operation):
+        # find all operations of transaction from queue
+        transaction_operations = [op for op in self.queue if op.transaction == operation.transaction]
+        # remove all operations of transaction from queue
+        self.queue = [op for op in self.queue if op.transaction != operation.transaction]
+        # add all transaction_operations to queue
+        for op in transaction_operations:
+            self.queue.append(op)
+
 
     def generate_final_schedule(self):
+        # # check preconditions
+        # if not self.check_preconditions():
 
         # identify timestamp
         self.identify_timestamp()
 
-        while len(self.transaction.operations) > 0:
+        while len(self.transaction.operations) > 0 or len(self.queue) > 0:
             # # print transaction operations and locks
             # print("Transaction operations: ")
             # for operation in self.transaction.operations:
@@ -136,6 +172,46 @@ class Scheduler:
             # for lock in self.locks:
             #     print(lock.type + str(lock.transaction) + "(" + lock.item + ")")
 
+            # prioritize queue operations
+            if len(self.queue) > 0:
+                operation = self.queue[0]
+                print("Try operation: " + operation.type + str(operation.transaction) + "(" + operation.item + ")")
+                if operation.type == 'R':
+                    if self.acquire_shared_lock(operation):
+                        self.final_schedule.append(operation)
+                        self.queue.pop(0)
+                        print("")
+                        continue
+                    else:
+                        if self.check_deadlock(operation):
+                            self.handle_deadlock_queue(operation)
+                            print("")
+                            continue
+                        else:
+                            self.queue_operation_queue(operation)
+                            print("queue-S(" + str(operation.item) + ",T" + str(operation.transaction) + ")")
+                elif operation.type == 'W':
+                    if self.acquire_exclusive_lock(operation):
+                        self.final_schedule.append(operation)
+                        self.queue.pop(0)
+                        print("")
+                        continue
+                    else:
+                        if self.check_deadlock(operation):
+                            self.handle_deadlock_queue(operation)
+                            print("")
+                            continue
+                        else:
+                            self.queue_operation_queue(operation)
+                            print("queue-X(" + str(operation.item) + ",T" + str(operation.transaction) + ")")
+                elif operation.type == 'C':
+                    flag = self.release_locks(operation)
+                    self.final_schedule.append(operation)
+                    self.queue.pop(0)
+                    print("")
+                    continue
+
+            # transaction operations
             operation = self.transaction.operations[0]
             print("Try operation: " + operation.type + str(operation.transaction) + "(" + operation.item + ")")
 
