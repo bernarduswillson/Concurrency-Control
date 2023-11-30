@@ -1,3 +1,8 @@
+from colorama import Fore
+
+"""
+TRANSACTION
+"""
 class Transaction:
     def __init__(self):
         self.operations = []
@@ -20,6 +25,9 @@ class Transaction:
                 operation = Operation(op_type, op_transaction, "")
                 self.operations.append(operation)
 
+"""
+OPERATION
+"""
 class Operation:
     # example: R1(A)
     # type = R, transaction = 1, item = A
@@ -28,6 +36,9 @@ class Operation:
         self.transaction = transaction
         self.item = item
 
+"""
+LOCK
+"""
 class Lock:
     # example: R1(A)
     # type = S, transaction = 1, item = A
@@ -36,6 +47,9 @@ class Lock:
         self.transaction = transaction
         self.item = item
 
+"""
+SCHEDULER
+"""
 class Scheduler:
     def __init__(self, transaction):
         self.transaction = transaction
@@ -46,12 +60,14 @@ class Scheduler:
         self.result = []
 
 
-    # FOR INITIAL SCHEUDLE
+    """
+    FOR INITIAL TRANSACTION
+    """
     def identify_timestamp(self):
+        # identify transaction order
         for operation in self.transaction.operations:
             if operation.transaction not in self.timestamp:
                 self.timestamp.append(operation.transaction)
-
         return self.timestamp
 
     def acquire_shared_lock(self, operation):
@@ -60,13 +76,15 @@ class Scheduler:
             if lock.item == operation.item and lock.transaction != operation.transaction:
                 if lock.type == 'X':
                     return False
-        # acquire shared lock
+
+        # acquire shared lock, if already have shared lock, do nothing
         for lock in self.locks:
             if lock.item == operation.item and lock.transaction == operation.transaction and lock.type == 'S':
                 return True
         self.locks.append(Lock('S', operation.transaction, operation.item))
-        self.result.append("SL" + str(operation.transaction) + "(" + operation.item + ")")
-        print("grant-S(" + str(operation.item) + ",T" + str(operation.transaction) + ")")
+        self.result.append(Fore.GREEN + "SL" + str(operation.transaction) + "(" + operation.item + ")" + Fore.RESET)
+        print(Fore.GREEN + "grant-S(" + str(operation.item) + ",T" + str(operation.transaction) + ")" + Fore.RESET)
+
         return True
 
     def acquire_exclusive_lock(self, operation):
@@ -74,18 +92,20 @@ class Scheduler:
         for lock in self.locks:
             if lock.item == operation.item and lock.transaction != operation.transaction:
                 return False
-        # acquire exclusive lock
+
+        # acquire exclusive lock, if already have shared lock, upgrade to exclusive lock
         flag = False
         for lock in self.locks:
             if lock.item == operation.item and lock.transaction == operation.transaction and lock.type == 'S':
                 flag = True
                 break
         if flag:
-            self.result.append("UPL" + str(operation.transaction) + "(" + operation.item + ")")
+            self.result.append(Fore.LIGHTGREEN_EX + "UPL" + str(operation.transaction) + "(" + operation.item + ")" + Fore.RESET)
         else:
-            self.result.append("XL" + str(operation.transaction) + "(" + operation.item + ")")
+            self.result.append(Fore.LIGHTGREEN_EX + "XL" + str(operation.transaction) + "(" + operation.item + ")" + Fore.RESET)
         self.locks.append(Lock('X', operation.transaction, operation.item))
-        print("grant-X(" + str(operation.item) + ",T" + str(operation.transaction) + ")")
+        print(Fore.LIGHTGREEN_EX + "grant-X(" + str(operation.item) + ",T" + str(operation.transaction) + ")" + Fore.RESET)
+
         return True
 
     def release_locks(self, operation):
@@ -94,46 +114,48 @@ class Scheduler:
         
         # remove all locks of transaction
         locks_to_remove = [lock for lock in self.locks if lock.transaction == operation.transaction]
-        
         for lock in locks_to_remove:
             lock_info = (lock.transaction, lock.item)
             if lock_info not in removed_lock:
-                self.result.append("UL" + str(lock.transaction) + "(" + lock.item + ")")
-                print("unlock(" + str(lock.item) + ",T" + str(lock.transaction) + ")")
+                self.result.append(Fore.BLUE + "UL" + str(lock.transaction) + "(" + lock.item + ")" + Fore.RESET)
+                print(Fore.BLUE + "unlock(" + str(lock.item) + ",T" + str(lock.transaction) + ")" + Fore.RESET)
                 removed_lock.append(lock_info)
-            
             self.locks.remove(lock)
             flag = True
 
         return flag
 
     def check_deadlock(self, operation):
-        # check if there is any lock on item
+        # check if there is any lock on item, check if opreation.transaction is the oldest transaction
         for lock in self.locks:
-            # check if operation.transaction is older than lock.transaction
-            if lock.item == operation.item and lock.transaction != operation.transaction:
-                if self.timestamp.index(lock.transaction) > self.timestamp.index(operation.transaction):
-                    return False
-        return True
+            if lock.item == operation.item and lock.transaction != operation.transaction and self.timestamp.index(lock.transaction) < self.timestamp.index(operation.transaction):
+                return True
+
+        return False
 
     def handle_deadlock(self, operation):
-
         # relase all locks of transaction
         flag = self.release_locks(operation)
         if (flag):
-            self.result.append("A" + str(operation.transaction))
-            print("rollback(T" + str(operation.transaction) + ")")
+            self.result.append(Fore.RED + "A" + str(operation.transaction) + Fore.RESET)
+            print(Fore.RED + "rollback(T" + str(operation.transaction) + ")" + Fore.RESET)
+
         # find all operations of transaction that has been executed
         executed_operations = [op for op in self.final_schedule if op.transaction == operation.transaction]
+
         # find all operations of transaction that in transaction
         transaction_operations = [op for op in self.transaction.operations if op.transaction == operation.transaction]
+
         # remove all operations of transaction from final schedule
         self.final_schedule = [op for op in self.final_schedule if op.transaction != operation.transaction]
+
         # remove all operations of transaction from transaction
         self.transaction.operations = [op for op in self.transaction.operations if op.transaction != operation.transaction]
+
         # add all executed_transactions to transaction
         for op in executed_operations:
             self.transaction.operations.append(op)
+
         # add all transaction_operations to transaction
         for op in transaction_operations:
             self.transaction.operations.append(op)
@@ -141,35 +163,46 @@ class Scheduler:
     def queue_operation(self, operation):
         # find all operations of transaction from transaction
         transaction_operations = [op for op in self.transaction.operations if op.transaction == operation.transaction]
+
         # remove all operations of transaction from transaction
         self.transaction.operations = [op for op in self.transaction.operations if op.transaction != operation.transaction]
+
         # add all transaction_operations to transaction
         for op in transaction_operations:
             self.queue.append(op)
         
         if operation.type == 'R':
-            print("queue-S(" + str(operation.item) + ",T" + str(operation.transaction) + ")")
+            print(Fore.YELLOW + "queue-S(" + str(operation.item) + ",T" + str(operation.transaction) + ")" + Fore.RESET)
         elif operation.type == 'W':
-            print("queue-X(" + str(operation.item) + ",T" + str(operation.transaction) + ")")
+            print(Fore.YELLOW + "queue-X(" + str(operation.item) + ",T" + str(operation.transaction) + ")" + Fore.RESET)
 
-    # FOR QUEUE
+
+    """
+    FOR QUEUE
+    """
     def handle_deadlock_queue(self, operation):
         # relase all locks of transaction
         flag = self.release_locks(operation)
         if (flag):
-            self.result.append("A" + str(operation.transaction))
-            print("rollback(T" + str(operation.transaction) + ")")
+            self.result.append(Fore.RED + "A" + str(operation.transaction) + Fore.RESET)
+            print(Fore.RED + "rollback(T" + str(operation.transaction) + ")" + Fore.RESET)
+
         # find all operations of transaction that has been executed
         executed_operations = [op for op in self.final_schedule if op.transaction == operation.transaction]
+
         # find all operations of transaction that in queue
         transaction_operations = [op for op in self.queue if op.transaction == operation.transaction]
+
         # remove all operations of transaction from final schedule
         self.final_schedule = [op for op in self.final_schedule if op.transaction != operation.transaction]
+
         # remove all operations of transaction from queue
         self.queue = [op for op in self.queue if op.transaction != operation.transaction]
+
         # add all executed_transactions to queue
         for op in executed_operations:
             self.queue.append(op)
+
         # add all transaction_operations to queue
         for op in transaction_operations:
             self.queue.append(op)
@@ -177,14 +210,18 @@ class Scheduler:
     def queue_operation_queue(self, operation):
         # find all operations of transaction from queue
         transaction_operations = [op for op in self.queue if op.transaction == operation.transaction]
+
         # remove all operations of transaction from queue
         self.queue = [op for op in self.queue if op.transaction != operation.transaction]
+
         # add all transaction_operations to queue
         for op in transaction_operations:
             self.queue.append(op)
 
     
-    # HANDLE PRECONDITIONS
+    """
+    HANDLE PRECONDITIONS
+    """
     def check_preconditions(self):
         # check if there is double commit
         for operation in self.transaction.operations:
@@ -225,7 +262,9 @@ class Scheduler:
         
         return True
 
-
+    """
+    MAIN ALGORITHM
+    """
     def generate_final_schedule(self):
         # check preconditions
         if self.check_preconditions() != True:
@@ -236,6 +275,7 @@ class Scheduler:
         self.identify_timestamp()
 
         while len(self.transaction.operations) > 0 or len(self.queue) > 0:
+            print("")
             # # print transaction operations and locks
             # print("Transaction operations: ")
             # for operation in self.transaction.operations:
@@ -244,47 +284,47 @@ class Scheduler:
             # for lock in self.locks:
             #     print(lock.type + str(lock.transaction) + "(" + lock.item + ")")
 
+
             # prioritize queue operations
             if len(self.queue) > 0:
                 operation = self.queue[0]
                 print("Try operation: " + operation.type + str(operation.transaction) + "(" + operation.item + ")")
+
                 if operation.type == 'R':
                     if self.acquire_shared_lock(operation):
                         self.final_schedule.append(operation)
                         self.result.append("R" + str(operation.transaction) + "(" + operation.item + ")")
                         self.queue.pop(0)
-                        print("")
                         continue
                     else:
                         if self.check_deadlock(operation):
                             self.handle_deadlock_queue(operation)
-                            print("")
                             continue
                         else:
                             self.queue_operation_queue(operation)
+                            print("")
+
                 elif operation.type == 'W':
                     if self.acquire_exclusive_lock(operation):
                         self.final_schedule.append(operation)
                         self.result.append("W" + str(operation.transaction) + "(" + operation.item + ")")
                         self.queue.pop(0)
-                        print("")
                         continue
                     else:
                         if self.check_deadlock(operation):
                             self.handle_deadlock_queue(operation)
-                            print("")
                             continue
                         else:
                             self.queue_operation_queue(operation)
+                            print("")
+
                 elif operation.type == 'C':
                     flag = self.release_locks(operation)
                     self.final_schedule.append(operation)
-                    self.result.append("C" + str(operation.transaction))
+                    self.result.append(Fore.CYAN + "C" + str(operation.transaction) + Fore.RESET)
                     self.queue.pop(0)
-                    print("")
                     continue
-                    
-                print("")
+    
 
             # transaction operations
             if len(self.transaction.operations) > 0:
@@ -301,6 +341,7 @@ class Scheduler:
                             self.handle_deadlock(operation)
                         else:
                             self.queue_operation(operation)
+
                 elif operation.type == 'W':
                     if self.acquire_exclusive_lock(operation):
                         self.final_schedule.append(operation)
@@ -311,16 +352,20 @@ class Scheduler:
                             self.handle_deadlock(operation)
                         else:
                             self.queue_operation(operation)
+
                 elif operation.type == 'C':
                     flag = self.release_locks(operation)
                     self.final_schedule.append(operation)
-                    self.result.append("C" + str(operation.transaction))
+                    self.result.append(Fore.CYAN + "C" + str(operation.transaction) + Fore.RESET)
                     self.transaction.operations.pop(0)
 
-            print("")
 
         return self.final_schedule
 
+
+    """
+    OUTPUT
+    """
     def print_final_schedule(self):
         if type(self.final_schedule) == str:
             print(self.final_schedule)
@@ -335,13 +380,17 @@ class Scheduler:
         for operation in self.result:
             print(operation + ";", end="")
 
-t = Transaction()
-input_str = "R1(X);R1(X);R2(X);R3(X);W1(X);W2(X);W3(X);C1;C2;C3"
-t.parse_input(input_str)
 
-s = Scheduler(t)
-final_schedule = s.generate_final_schedule()
-print("Final schedule: ")
-# s.print_final_schedule()
-# print("")
-s.print_result()
+"""
+MAIN
+"""
+if __name__ == "__main__":
+    t = Transaction()
+    input_str = input("Input: ")
+    t.parse_input(input_str)
+
+    s = Scheduler(t)
+    final_schedule = s.generate_final_schedule()
+    print("\n\nFINAL SCHEDULE:")
+    s.print_result()
+    print("\n\n")
