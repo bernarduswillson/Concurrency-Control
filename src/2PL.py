@@ -76,9 +76,8 @@ class Scheduler:
 
     def release_locks(self, operation):
         flag = False
-
+        # remove all locks of transaction
         locks_to_remove = [lock for lock in self.locks if lock.transaction == operation.transaction]
-
         for lock in locks_to_remove:
             print("unlock(" + str(lock.item) + ",T" + str(lock.transaction) + ")")
             self.locks.remove(lock)
@@ -155,10 +154,54 @@ class Scheduler:
         for op in transaction_operations:
             self.queue.append(op)
 
+    
+    # HANDLE PRECONDITIONS
+    def check_preconditions(self):
+        # check if there is double commit
+        for operation in self.transaction.operations:
+            if operation.type == 'C':
+                count = 0
+                for op in self.transaction.operations:
+                    if op.type == 'C' and op.transaction == operation.transaction:
+                        count += 1
+                if count > 1:
+                    return "Invalid schedule: Commit more than once"
+
+        # check if there is operation after commit
+        for operation in self.transaction.operations:
+            if operation.type == 'C':
+                for op in self.transaction.operations:
+                    if op.transaction == operation.transaction and self.transaction.operations.index(op) > self.transaction.operations.index(operation):
+                        return "Invalid schedule: Operation after commit"
+            
+        # check if operation without commit
+        for operation in self.transaction.operations:
+            if operation.type != 'C':
+                count = 0
+                for op in self.transaction.operations:
+                    if op.type == 'C' and op.transaction == operation.transaction:
+                        count += 1
+                if count == 0:
+                    return "Invalid schedule: Operation without commit"
+
+        # check if commit without operation
+        for operation in self.transaction.operations:
+            if operation.type == 'C':
+                count = 0
+                for op in self.transaction.operations:
+                    if op.transaction == operation.transaction:
+                        count += 1
+                if count == 1:
+                    return "Invalid schedule: Commit without operation"
+        
+        return True
+
 
     def generate_final_schedule(self):
-        # # check preconditions
-        # if not self.check_preconditions():
+        # check preconditions
+        if self.check_preconditions() != True:
+            self.final_schedule = self.check_preconditions()
+            return self.final_schedule
 
         # identify timestamp
         self.identify_timestamp()
@@ -189,7 +232,6 @@ class Scheduler:
                             continue
                         else:
                             self.queue_operation_queue(operation)
-                            print("queue-S(" + str(operation.item) + ",T" + str(operation.transaction) + ")")
                 elif operation.type == 'W':
                     if self.acquire_exclusive_lock(operation):
                         self.final_schedule.append(operation)
@@ -203,13 +245,14 @@ class Scheduler:
                             continue
                         else:
                             self.queue_operation_queue(operation)
-                            print("queue-X(" + str(operation.item) + ",T" + str(operation.transaction) + ")")
                 elif operation.type == 'C':
                     flag = self.release_locks(operation)
                     self.final_schedule.append(operation)
                     self.queue.pop(0)
                     print("")
                     continue
+                    
+                print("")
 
             # transaction operations
             operation = self.transaction.operations[0]
@@ -245,6 +288,9 @@ class Scheduler:
         return self.final_schedule
 
     def print_final_schedule(self):
+        if type(self.final_schedule) == str:
+            print(self.final_schedule)
+            return
         for operation in self.final_schedule:
             if operation.type == 'C':
                 print(operation.type + str(operation.transaction))
@@ -252,10 +298,10 @@ class Scheduler:
                 print(operation.type + str(operation.transaction) + "(" + operation.item + ")")
 
 t = Transaction()
-input_str = "R1(A);R2(B);W1(A);R1(B);W3(A);W4(B);W2(B);R1(C);C1;C2;C3;C4"
+input_str = "R1(A);R2(B);W1(A);W1(B);W3(A);W4(B);W2(B);R1(C);C1;C2;C3;C4"
 t.parse_input(input_str)
 
 s = Scheduler(t)
-final_schedule = s.generate_final_schedule()
 print("Final schedule: ")
+final_schedule = s.generate_final_schedule()
 s.print_final_schedule()
