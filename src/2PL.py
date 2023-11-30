@@ -43,6 +43,7 @@ class Scheduler:
         self.timestamp = []
         self.queue = []
         self.final_schedule = []
+        self.result = []
 
 
     # FOR INITIAL SCHEUDLE
@@ -60,7 +61,11 @@ class Scheduler:
                 if lock.type == 'X':
                     return False
         # acquire shared lock
+        for lock in self.locks:
+            if lock.item == operation.item and lock.transaction == operation.transaction and lock.type == 'S':
+                return True
         self.locks.append(Lock('S', operation.transaction, operation.item))
+        self.result.append("SL" + str(operation.transaction) + "(" + operation.item + ")")
         print("grant-S(" + str(operation.item) + ",T" + str(operation.transaction) + ")")
         return True
 
@@ -70,16 +75,33 @@ class Scheduler:
             if lock.item == operation.item and lock.transaction != operation.transaction:
                 return False
         # acquire exclusive lock
+        flag = False
+        for lock in self.locks:
+            if lock.item == operation.item and lock.transaction == operation.transaction and lock.type == 'S':
+                flag = True
+                break
+        if flag:
+            self.result.append("UPL" + str(operation.transaction) + "(" + operation.item + ")")
+        else:
+            self.result.append("XL" + str(operation.transaction) + "(" + operation.item + ")")
         self.locks.append(Lock('X', operation.transaction, operation.item))
         print("grant-X(" + str(operation.item) + ",T" + str(operation.transaction) + ")")
         return True
 
     def release_locks(self, operation):
         flag = False
+        removed_lock = []
+        
         # remove all locks of transaction
         locks_to_remove = [lock for lock in self.locks if lock.transaction == operation.transaction]
+        
         for lock in locks_to_remove:
-            print("unlock(" + str(lock.item) + ",T" + str(lock.transaction) + ")")
+            lock_info = (lock.transaction, lock.item)
+            if lock_info not in removed_lock:
+                self.result.append("UL" + str(lock.transaction) + "(" + lock.item + ")")
+                print("unlock(" + str(lock.item) + ",T" + str(lock.transaction) + ")")
+                removed_lock.append(lock_info)
+            
             self.locks.remove(lock)
             flag = True
 
@@ -99,6 +121,7 @@ class Scheduler:
         # relase all locks of transaction
         flag = self.release_locks(operation)
         if (flag):
+            self.result.append("A" + str(operation.transaction))
             print("rollback(T" + str(operation.transaction) + ")")
         # find all operations of transaction that has been executed
         executed_operations = [op for op in self.final_schedule if op.transaction == operation.transaction]
@@ -123,12 +146,18 @@ class Scheduler:
         # add all transaction_operations to transaction
         for op in transaction_operations:
             self.queue.append(op)
+        
+        if operation.type == 'R':
+            print("queue-S(" + str(operation.item) + ",T" + str(operation.transaction) + ")")
+        elif operation.type == 'W':
+            print("queue-X(" + str(operation.item) + ",T" + str(operation.transaction) + ")")
 
     # FOR QUEUE
     def handle_deadlock_queue(self, operation):
         # relase all locks of transaction
         flag = self.release_locks(operation)
         if (flag):
+            self.result.append("A" + str(operation.transaction))
             print("rollback(T" + str(operation.transaction) + ")")
         # find all operations of transaction that has been executed
         executed_operations = [op for op in self.final_schedule if op.transaction == operation.transaction]
@@ -222,6 +251,7 @@ class Scheduler:
                 if operation.type == 'R':
                     if self.acquire_shared_lock(operation):
                         self.final_schedule.append(operation)
+                        self.result.append("R" + str(operation.transaction) + "(" + operation.item + ")")
                         self.queue.pop(0)
                         print("")
                         continue
@@ -235,6 +265,7 @@ class Scheduler:
                 elif operation.type == 'W':
                     if self.acquire_exclusive_lock(operation):
                         self.final_schedule.append(operation)
+                        self.result.append("W" + str(operation.transaction) + "(" + operation.item + ")")
                         self.queue.pop(0)
                         print("")
                         continue
@@ -248,6 +279,7 @@ class Scheduler:
                 elif operation.type == 'C':
                     flag = self.release_locks(operation)
                     self.final_schedule.append(operation)
+                    self.result.append("C" + str(operation.transaction))
                     self.queue.pop(0)
                     print("")
                     continue
@@ -255,33 +287,35 @@ class Scheduler:
                 print("")
 
             # transaction operations
-            operation = self.transaction.operations[0]
-            print("Try operation: " + operation.type + str(operation.transaction) + "(" + operation.item + ")")
+            if len(self.transaction.operations) > 0:
+                operation = self.transaction.operations[0]
+                print("Try operation: " + operation.type + str(operation.transaction) + "(" + operation.item + ")")
 
-            if operation.type == 'R':
-                if self.acquire_shared_lock(operation):
-                    self.final_schedule.append(operation)
-                    self.transaction.operations.pop(0)
-                else:
-                    if self.check_deadlock(operation):
-                        self.handle_deadlock(operation)
+                if operation.type == 'R':
+                    if self.acquire_shared_lock(operation):
+                        self.final_schedule.append(operation)
+                        self.result.append("R" + str(operation.transaction) + "(" + operation.item + ")")
+                        self.transaction.operations.pop(0)
                     else:
-                        self.queue_operation(operation)
-                        print("queue-S(" + str(operation.item) + ",T" + str(operation.transaction) + ")")
-            elif operation.type == 'W':
-                if self.acquire_exclusive_lock(operation):
-                    self.final_schedule.append(operation)
-                    self.transaction.operations.pop(0)
-                else:
-                    if self.check_deadlock(operation):
-                        self.handle_deadlock(operation)
+                        if self.check_deadlock(operation):
+                            self.handle_deadlock(operation)
+                        else:
+                            self.queue_operation(operation)
+                elif operation.type == 'W':
+                    if self.acquire_exclusive_lock(operation):
+                        self.final_schedule.append(operation)
+                        self.result.append("W" + str(operation.transaction) + "(" + operation.item + ")")
+                        self.transaction.operations.pop(0)
                     else:
-                        self.queue_operation(operation)
-                        print("queue-X(" + str(operation.item) + ",T" + str(operation.transaction) + ")")
-            elif operation.type == 'C':
-                flag = self.release_locks(operation)
-                self.final_schedule.append(operation)
-                self.transaction.operations.pop(0)
+                        if self.check_deadlock(operation):
+                            self.handle_deadlock(operation)
+                        else:
+                            self.queue_operation(operation)
+                elif operation.type == 'C':
+                    flag = self.release_locks(operation)
+                    self.final_schedule.append(operation)
+                    self.result.append("C" + str(operation.transaction))
+                    self.transaction.operations.pop(0)
 
             print("")
 
@@ -297,11 +331,17 @@ class Scheduler:
             else:
                 print(operation.type + str(operation.transaction) + "(" + operation.item + ")")
 
+    def print_result(self):
+        for operation in self.result:
+            print(operation + ";", end="")
+
 t = Transaction()
-input_str = "R1(A);R2(B);W1(A);W1(B);W3(A);W4(B);W2(B);R1(C);C1;C2;C3;C4"
+input_str = "R1(X);R1(X);R2(X);R3(X);W1(X);W2(X);W3(X);C1;C2;C3"
 t.parse_input(input_str)
 
 s = Scheduler(t)
-print("Final schedule: ")
 final_schedule = s.generate_final_schedule()
-s.print_final_schedule()
+print("Final schedule: ")
+# s.print_final_schedule()
+# print("")
+s.print_result()
