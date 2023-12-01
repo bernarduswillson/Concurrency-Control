@@ -33,6 +33,6 @@ Valid input consists of a sequence of transactions, where each transaction inclu
 Here is an example of valid input:
 
 ```bash
-R1(X); R2(Y); R1(Y); C1; C2
+R1(X);R2(Y);R1(Y);C1;C2
 ```
 
