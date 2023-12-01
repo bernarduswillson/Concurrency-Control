@@ -133,7 +133,13 @@ class Scheduler:
                 print(f"T{op['transaction']} reads {op['item']}")
         return idx
     
-    def run(self):
+    def print_final_schedule(self, final_schedule):
+        print("\n\nFINAL SCHEDULE:")
+        for op in final_schedule:
+            print(op + ";", end="")
+        print("\n")
+
+    def execute_transactions(self):
         res = []
         idx = 0
         while idx < len(self.schedule):
@@ -143,14 +149,11 @@ class Scheduler:
             operation = Operation(task['operation'], task['transaction'], task.get('item'))
             idx = self.execute_operation(task, transaction, operation, res, idx)
 
-        print("FINAL SCHEDULE:")
-        for op in res:
-            print(op, end="; ")
-        print()
+        self.print_final_schedule(res)
 
 if __name__ == '__main__':
-    input_str = "R1(A);R2(B);W1(A);R1(B);W3(A);W4(B);W2(B);R1(C);C1;C2;C3;C4"
-
+    input_str = input("Input: ")
+    print("\n")
     occ = Scheduler()
     occ.parse_input(input_str)
-    occ.run()
+    occ.execute_transactions()
