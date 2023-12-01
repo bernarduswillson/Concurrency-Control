@@ -1,3 +1,5 @@
+from colorama import Fore
+
 class Operation:
     def __init__(self, type, transaction, item):
         self.type = type
@@ -102,7 +104,7 @@ class Scheduler:
                         break
 
         if is_commit_allowed:
-            res.append(f"C{operation.transaction}")
+            res.append(Fore.CYAN + f"C{operation.transaction}" + Fore.RESET)
             print(f"T{operation.transaction} commits")
             idx += 1
         else:
@@ -110,7 +112,7 @@ class Scheduler:
         return idx
     
     def handle_abort(self, task, transaction, operation, res, idx):
-        res.append(f"A{operation.transaction}")
+        res.append(Fore.RED + f"A{operation.transaction}" + Fore.RESET)
         print(f"T{operation.transaction} aborts")
         aborted_operations = []
         for prev in range(idx):
@@ -143,14 +145,16 @@ class Scheduler:
             operation = Operation(task['operation'], task['transaction'], task.get('item'))
             idx = self.execute_operation(task, transaction, operation, res, idx)
 
-        print("FINAL SCHEDULE:")
+        print("\n\nFINAL SCHEDULE:")
         for op in res:
             print(op, end="; ")
-        print()
+        print("\n\n")
 
 if __name__ == '__main__':
-    input_str = "R1(A);R2(B);W1(A);R1(B);W3(A);W4(B);W2(B);R1(C);C1;C2;C3;C4"
-
+    print(Fore.GREEN + "Optimistic Concurrency Control (OCC)" + Fore.RESET)
+    print(Fore.WHITE + "Enter the schedule in the following format: R1(A);W1(A);C1;R2(A);W2(A);C2; ..." + Fore.RESET)
+    input_str = input("Enter the schedule: ")
     occ = Scheduler()
     occ.parse_input(input_str)
+
     occ.run()

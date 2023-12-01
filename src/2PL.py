@@ -378,15 +378,17 @@ class Scheduler:
 
     def print_result(self):
         for operation in self.result:
-            print(operation + ";", end="")
+            print(operation + "; ", end="")
 
 
 """
 MAIN
 """
 if __name__ == "__main__":
+    print(Fore.GREEN + "Two-Phase Locking (2PL)" + Fore.RESET)
+    print(Fore.WHITE + "Enter the schedule in the following format: R1(A);W1(A);C1;R2(A);W2(A);C2; ..." + Fore.RESET)
+    input_str = input("Enter the schedule: ")
     t = Transaction()
-    input_str = input("Input: ")
     t.parse_input(input_str)
 
     s = Scheduler(t)
